@@ -4,7 +4,7 @@ require 'rake'
 begin
   require 'jeweler'
   Jeweler::Tasks.new do |gem|
-    gem.name = "sonar-connector-filestore"
+    gem.name = "sonar_connector_filestore"
     gem.summary = %Q{reliable staged processing with the filesystem}
     gem.description = %Q{support for staged processing using a vanilla filesystem for storage}
     gem.email = "craig@trampolinesystems.com"
