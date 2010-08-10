@@ -138,6 +138,27 @@ module Sonar
         end
       end
 
+      describe "flip" do
+        before do
+          @testfs = create_testfs(:foo, :bar, :baz)
+          @testfs.write(:foo, "testfile.txt", "one two three")
+          
+          @targetfs = FileStore.new(TMP_DIR, :targetfs, :a, :b)
+        end
+
+
+        it "should flip from testfs to targetfs" do
+          @testfs.flip(:foo, @targetfs, :a)
+
+          File.exists?(File.join(@targetfs.area_path(:a), @testfs.name.to_s, "testfile.txt")).should == true
+
+          # should recreate are in flipped source, so source is
+          # still valid
+          File.exists?(File.join(@testfs.area_path(:foo)))
+        end
+
+      end
+
     end
   end
 end

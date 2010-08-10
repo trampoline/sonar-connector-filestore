@@ -126,21 +126,24 @@ module Sonar
         FileUtils.mv(f1, f2)
       end
 
-      # flip an area into a sub-directory of an area in another
+      # flip files from an area into a sub-directory of an area 
+      # in another
       # filestore, named by the name of this filestore
       # thus 
-      # fs1.flip(:areafoo, fs2, :areabar ) moves
-      # fs1/areafoo => fs2/areabar/fs1
+      # fs1.flip(:complete, fs2, :working ) moves
+      # fs1/complete => fs2/working/fs1
       def flip(area, filestore, to_area)
         ap = area_path(area)
-        filestore.receive_flip(name, ap, to_area)
+        for_each(area) do |f|
+          filestore.receive_flip(name, File.join(ap,f), to_area)
+        end
       end
 
       # receive a flip
       def receive_flip(from_filestore_name, path, to_area)
         ap = area_path(to_area)
-        to_path = File.join(ap, from_filestore_name)
-        FileUtils.mkdir_p(to_d)
+        to_path = File.join(ap, from_filestore_name.to_s)
+        FileUtils.mkdir_p(to_path)
         FileUtils.mv(path, to_path)
       end
     end
