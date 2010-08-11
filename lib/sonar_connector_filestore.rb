@@ -26,14 +26,14 @@ module Sonar
       attr_reader :name
       attr_reader :areas
       
-      def initialize(root, name, *areas)
+      def initialize(root, name, areas)
         raise "directory '#{root}' does not exist" if !File.directory?(root)
         @root = root
 
         @name = name
         FileUtils.mkdir_p(filestore_path)
 
-        @areas = Set.new(areas)
+        @areas = Set.new([*areas])
         raise ":tmp is not a valid area name" if @areas.include?(:tmp)
         @areas.each{|area| FileUtils.mkdir_p(area_path(area))}
       end

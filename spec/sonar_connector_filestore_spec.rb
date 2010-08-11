@@ -20,7 +20,7 @@ module Sonar
 
       def create_testfs(*areas)
         areas = [:foo, :bar] if areas.empty?
-        FileStore.new(TMP_DIR, :testfs, *areas)
+        FileStore.new(TMP_DIR, :testfs, areas)
       end
 
       it "should initialize with a root, a name and areas, and create directories" do
@@ -176,7 +176,7 @@ module Sonar
           @testfs = create_testfs(:foo, :bar, :baz)
           @testfs.write(:foo, "testfile.txt", "one two three")
           
-          @targetfs = FileStore.new(TMP_DIR, :targetfs, :a, :b)
+          @targetfs = FileStore.new(TMP_DIR, :targetfs, [:a, :b])
         end
 
 
