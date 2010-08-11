@@ -9,7 +9,14 @@ module Sonar
     #
     # - root, effectively a parent directory
     # - name : the filestore directory name
-    # - areas : names of acceptable sub-directories in the FileStore
+    # - areas : names of acceptable sub-directories in the FileStore directory
+    # so a filestore with (@root=="/foo", @name==:bar, @areas=[:area51, :area52])
+    # would have directories :
+    #
+    # /foo
+    # /foo/bar
+    # /foo/bar/area51
+    # /foo/bar/area52
     class FileStore
       LOGGER = Logger.new($stdout)
       LOGGER.level = Logger::INFO
