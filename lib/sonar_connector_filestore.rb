@@ -1,4 +1,6 @@
 require 'fileutils'
+require 'uuidtools'
+require 'logger'
 
 module Sonar
   module Connector
@@ -9,6 +11,9 @@ module Sonar
     # - name : the filestore directory name
     # - areas : names of acceptable sub-directories in the FileStore
     class FileStore
+      LOGGER = Logger.new($stdout)
+      LOGGER.level = Logger::INFO
+
       attr_reader :root
       attr_reader :name
       attr_reader :areas
@@ -21,6 +26,7 @@ module Sonar
         FileUtils.mkdir_p(filestore_path)
 
         @areas = Set.new(areas)
+        raise ":tmp is not a valid area name" if @areas.include?(:tmp)
         @areas.each{|area| FileUtils.mkdir_p(area_path(area))}
       end
 
@@ -33,7 +39,7 @@ module Sonar
       end
 
       def check_area(area)
-        raise "no such area: #{area}" if !@areas.include?(area)
+        raise "no such area: #{area}" if !@areas.include?(area) && area!=:tmp
       end
       
       def area_path(area)
@@ -60,7 +66,7 @@ module Sonar
               delete(source_area, f)
             end
           rescue Exception=>e
-            $stderr << [e.message, *e.backtrace].join("\n") << "\n"
+            LOGGER.warn(FileStore.to_s){[e.class.to_s, e.message, *e.backtrace].join("\n")}
             if error_area
               move(source_area, f, error_area)
             else
@@ -103,6 +109,7 @@ module Sonar
         File.open(file_path(area, filename), "w"){ |io| io << content }
       end
 
+      # read a file from an area
       def read(area, filename)
         File.read(file_path(area, filename))
       end
@@ -131,20 +138,33 @@ module Sonar
       # filestore, named by the name of this filestore
       # thus 
       # fs1.flip(:complete, fs2, :working ) moves
-      # fs1/complete => fs2/working/fs1
+      # fs1/complete/* => fs2/working/fs1/*
       def flip(area, filestore, to_area)
         ap = area_path(area)
+        paths = []
+        # collect all moveable paths
         for_each(area) do |f|
-          filestore.receive_flip(name, File.join(ap,f), to_area)
+          paths << File.join(ap, f)
         end
+        filestore.receive_flip(name, to_area, paths)
       end
 
-      # receive a flip
-      def receive_flip(from_filestore_name, path, to_area)
+      # receive a flip... move all paths to be flipped 
+      # into a temporary directory, and then move that
+      # directory into place in one atomic move operation
+      def receive_flip(from_filestore_name, to_area, paths)
         ap = area_path(to_area)
         to_path = File.join(ap, from_filestore_name.to_s)
-        FileUtils.mkdir_p(to_path)
-        FileUtils.mv(path, to_path)
+
+        # first move all moveable paths to a unique named tmp area
+        tmp_path = File.join(area_path(:tmp), UUIDTools::UUID.timestamp_create)
+        FileUtils.mkdir_p(tmp_path)
+        paths.each do |path|
+          FileUtils.mv(path, tmp_path)
+        end
+
+        # then move them to the target path in one atomic hit
+        FileUtils.mv(tmp_path, to_path)
       end
     end
   end

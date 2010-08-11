@@ -6,12 +6,16 @@ module Sonar
   module Connector
     describe "SonarConnectorFilestore" do
 
+      before(:all) do
+        FileStore::LOGGER.level = Logger::FATAL
+      end
+
       before(:each) do
+        FileUtils.rm_rf(TMP_DIR)
         FileUtils.mkdir_p(TMP_DIR)
       end
 
       after(:each) do
-        FileUtils.rm_rf(TMP_DIR)
       end
 
       def create_testfs(*areas)
@@ -89,6 +93,19 @@ module Sonar
         end
 
         texts.should == ["one two three", "four five six"].to_set
+      end
+
+      it "should ignore . and .. files when iterating" do
+        fs = create_testfs(:foo, :bar, :baz)
+
+        stub(Dir).foreach do |path, proc| 
+          [".", "..", "foo", "bar"].each{ |p| proc.call(p)}
+        end
+        
+        files = Set.new
+        fs.for_each(:foo){|f| files << f}
+        files.should == ["foo", "bar"].to_set
+        
       end
 
       describe "process" do
