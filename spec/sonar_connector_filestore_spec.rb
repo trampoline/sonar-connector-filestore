@@ -7,7 +7,7 @@ module Sonar
     describe "SonarConnectorFilestore" do
 
       before(:all) do
-        FileStore::LOGGER.level = Logger::FATAL
+        FileStore::logger.level = Logger::FATAL
       end
 
       before(:each) do

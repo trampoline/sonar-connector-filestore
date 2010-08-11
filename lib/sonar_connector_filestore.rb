@@ -19,8 +19,11 @@ module Sonar
     #  /foo/bar/area51
     #  /foo/bar/area52
     class FileStore
-      LOGGER = Logger.new($stdout)
-      LOGGER.level = Logger::INFO
+      class << self
+        attr_accessor :logger
+      end
+      FileStore.logger = Logger.new($stdout)
+      FileStore.logger.level = Logger::INFO
 
       attr_reader :root
       attr_reader :name
@@ -79,7 +82,7 @@ module Sonar
               delete(source_area, f)
             end
           rescue Exception=>e
-            LOGGER.warn(FileStore.to_s){[e.class.to_s, e.message, *e.backtrace].join("\n")}
+            FileStore.logger.warn(FileStore.to_s){[e.class.to_s, e.message, *e.backtrace].join("\n")}
             if error_area
               move(source_area, f, error_area)
             else
