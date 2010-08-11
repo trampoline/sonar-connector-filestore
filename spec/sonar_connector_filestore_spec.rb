@@ -81,6 +81,22 @@ module Sonar
         fs.area_size.should == {:foo=>sz1, :bar=>2*sz1}
       end
 
+      it "should scrub empty directories from an area" do
+        fs = create_testfs
+        ap = fs.area_path(:foo)
+        FileUtils.mkdir_p(File.join(ap, "bar", "baz"))
+        FileUtils.mkdir_p(File.join(ap, "woo"))
+        FileUtils.mkdir_p(File.join(ap, "waz"))
+        fs.write(:foo, File.join("waz", "testfile.txt"), "one two three")
+
+        fs.scrub!(:foo)
+
+        File.exist?(File.join(ap, "bar")).should == false
+        File.exist?(File.join(ap, "woo")).should == false
+        File.exist?(File.join(ap, "waz", "testfile.txt")).should == true
+      end
+
+
       it "should iterate over all files in an area" do
         fs = create_testfs
         fs.write(:foo, "testfile.txt", "one two three")

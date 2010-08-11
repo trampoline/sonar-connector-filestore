@@ -1,6 +1,7 @@
 require 'fileutils'
 require 'uuidtools'
 require 'logger'
+require 'set'
 
 module Sonar
   module Connector
@@ -142,6 +143,11 @@ module Sonar
         FileUtils.mv(f1, f2)
       end
 
+      # remove any empty directories from an area
+      def scrub!(area)
+        scrub_path(area_path(area), false)
+      end
+
       # flip files from an area into a sub-directory of an area 
       # in another
       # filestore, named by the name of this filestore
@@ -175,6 +181,24 @@ module Sonar
         # then move them to the target path in one atomic hit
         FileUtils.mv(tmp_path, to_path)
       end
+
+      private
+
+      # depth first search
+      def scrub_path(path, scrub)
+        empty = scrub
+        Dir.foreach(path) do |f|
+          sub_path = File.join(path, f)
+          if File.directory?(sub_path) 
+            # want to descend : so avoid short-cut evaluation
+            empty = scrub_path(sub_path, true) && empty if f !~ /^\./
+          else
+            empty = false
+          end
+        end
+        FileUtils.rm_rf(path) if empty
+      end
+
     end
   end
 end
