@@ -13,10 +13,10 @@ module Sonar
     # so a filestore with (@root=="/foo", @name==:bar, @areas=[:area51, :area52])
     # would have directories :
     #
-    # /foo
-    # /foo/bar
-    # /foo/bar/area51
-    # /foo/bar/area52
+    #  /foo
+    #  /foo/bar
+    #  /foo/bar/area51
+    #  /foo/bar/area52
     class FileStore
       LOGGER = Logger.new($stdout)
       LOGGER.level = Logger::INFO
@@ -83,12 +83,13 @@ module Sonar
         end
       end
 
-      # number of items in the area
+      # number of items in an area
       def count(area)
         ap = area_path(area)
         Dir[File.join(ap, "*")].length
       end
 
+      # hash of counts keyed by area
       def area_count
         @areas.reduce({}){|h,area| h[area]=count(area) ; h}
       end
@@ -98,7 +99,8 @@ module Sonar
         ap = area_path(area)
         `du -k #{ap}`.gsub(/\W+tmp\W*$/m,'').to_i
       end
-      
+
+      # hash of sizes keyed by area
       def area_size
         @areas.reduce({}){|h,area| h[area]=size(area) ; h}
       end
