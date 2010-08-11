@@ -26,6 +26,11 @@ module Sonar
       attr_reader :name
       attr_reader :areas
       
+      def self.valid_filestore_name(name)
+        name !~ /^\./
+      end
+
+
       def initialize(root, name, areas)
         raise "directory '#{root}' does not exist" if !File.directory?(root)
         @root = root
@@ -110,7 +115,7 @@ module Sonar
       def for_each(area)
         ap = area_path(area)
         Dir.foreach(area_path(area)) do |f|
-          yield f if f !~ /^\./
+          yield f if FileStore.valid_filestore_name(f)
         end
       end
 
@@ -191,7 +196,7 @@ module Sonar
           sub_path = File.join(path, f)
           if File.directory?(sub_path) 
             # want to descend : so avoid short-cut evaluation
-            empty = scrub_path(sub_path, true) && empty if f !~ /^\./
+            empty = scrub_path(sub_path, true) && empty if FileStore.valid_filestore_name(f)
           else
             empty = false
           end
