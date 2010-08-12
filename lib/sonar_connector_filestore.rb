@@ -79,8 +79,14 @@ module Sonar
         File.join(area_path(area), filename)
       end
 
+      # marker exception to tell process and process_batch to 
+      # leave files in the source area
+      class LeaveInSourceArea < RuntimeError
+      end
+
       # process files from source_area. move it to error_area if the block
-      # raises an exception and to success_area if the block completes
+      # raises an exception and to success_area if the block completes. if
+      # LeaveInSourceArea is raised, don't do anything with the files
       def process(source_area, error_area=nil, success_area=nil)
         raise "i need a block" if !block_given?
         
@@ -93,6 +99,9 @@ module Sonar
             else
               delete(source_area, f)
             end
+          rescue LeaveInSourceArea=>e
+            logger.info("leaving files in #{source_area}")
+            raise
           rescue Exception=>e
             logger.warn(FileStore.to_s){[e.class.to_s, e.message, *e.backtrace].join("\n")}
             if error_area
@@ -100,13 +109,15 @@ module Sonar
             else
               delete(source_area, f)
             end
+            raise
           end
         end
       end
 
       # process a batch of files from source_area. move them to error_area if
-      # the block raises and exception, and to success_area if the block completes
-      # returns the number of items processed, 0 if all work is done
+      # the block raises and exception, and to success_area if the block completes,
+      # and leave where they are if LeaveInSourceArea is raised.
+      # returns the number of items processed, 0 if all work is done.
       def process_batch(batch_size, source_area, error_area=nil, success_area=nil)
         raise "i need a block" if !block_given?
 
@@ -118,6 +129,9 @@ module Sonar
           else
             batch.each{|p| delete(source_area, p)}
           end
+        rescue LeaveInSourceArea=>e
+          logger.info("leaving files in #{source_area}")
+          raise
         rescue Exception=>e
           logger.warn(FileStore.to_s){[e.class.to_s, e.message, *e.backtrace].join("\n")}
           if error_area
@@ -125,6 +139,7 @@ module Sonar
           else
             batch.each{|p| delete(source_area, p)}
           end
+          raise
         end
         return batch.size
       end

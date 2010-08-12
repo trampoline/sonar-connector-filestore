@@ -143,31 +143,31 @@ module Sonar
 
         it "should move failed processings to the error_area" do
           texts = Set.new
-          @fs.process(:foo, :bar) do |f|
-            s = File.read(@fs.file_path(:foo, f))
-            raise "five" if s =~ /five/
-            texts << s
-          end
-          texts.should == ["one two three", "seven eight nine"].to_set
-          @fs.count(:foo).should == 0
+          lambda {
+            @fs.process(:foo, :bar) do |f|
+              s = File.read(@fs.file_path(:foo, f))
+              raise "five" if s =~ /five/
+              texts << s
+            end
+          }.should raise_error("five")
+          @fs.count(:foo).should == 1
           @fs.count(:bar).should == 1
           @fs.read(:bar, "testfile2.txt").should == "four five six"
         end
 
         it "should move completed processings to the success_area" do
           texts = Set.new
-          @fs.process(:foo, :bar, :baz) do |f|
-            s = File.read(@fs.file_path(:foo, f))
-            raise "five" if s =~ /five/
-            texts << s
-          end
-          texts.should == ["one two three", "seven eight nine"].to_set
-          @fs.count(:foo).should == 0
+          lambda {
+            @fs.process(:foo, :bar, :baz) do |f|
+              s = File.read(@fs.file_path(:foo, f))
+              raise "five" if s =~ /five/
+              texts << s
+            end
+          }.should raise_error("five")
+          @fs.count(:foo).should == 1
           @fs.count(:bar).should == 1
+          @fs.count(:baz).should == 1
           @fs.read(:bar, "testfile2.txt").should == "four five six"
-          
-          @fs.read(:baz, "testfile.txt").should == "one two three"
-          @fs.read(:baz, "testfile3.txt").should == "seven eight nine"
         end
       end
 
@@ -221,7 +221,9 @@ module Sonar
         end
 
         it "should move failed batches to error_area if given" do
-          process_batch(@fs, 2, :foo, :bar){|f| raise "foo"}.should == 2
+          lambda {
+            process_batch(@fs, 2, :foo, :bar){|f| raise "foo"}
+          }.should raise_error("foo")
           
           @files.size.should == 2
           check_files(@fs, :foo, @files, true)
@@ -246,6 +248,15 @@ module Sonar
           check_files(@fs, :baz, @processed, true)
           
           process_batch(@fs, 2, :foo, :bar, :baz).should == 0
+        end
+
+        it "should leave files in source area if LeaveInSourceArea is thrown" do
+          lambda {
+            process_batch(@fs, 2, :foo, :bar){|f| raise FileStore::LeaveInSourceArea }
+          }.should raise_error(FileStore::LeaveInSourceArea)
+          check_files(@fs, :foo, @files, true)
+          check_files(@fs, :baz, @processed, false)
+          check_files(@fs, :foo, @processed, true)
         end
 
       end
