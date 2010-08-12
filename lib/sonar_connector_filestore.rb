@@ -39,7 +39,7 @@ module Sonar
         name !~ /^\./
       end
 
-      def initialize(root, name, areas)
+      def initialize(root, name, areas, opts={})
         raise "directory '#{root}' does not exist or is not a directory" if !File.directory?(root)
         @root = root
 
@@ -50,6 +50,8 @@ module Sonar
         @areas = Set.new([*areas])
         raise ":tmp is not a valid area name" if @areas.include?(:tmp)
         @areas.each{|area| FileUtils.mkdir_p(area_path(area))}
+
+        @logger = opts[:logger]
       end
 
       def logger
