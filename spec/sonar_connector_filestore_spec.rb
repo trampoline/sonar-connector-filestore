@@ -295,6 +295,21 @@ module Sonar
         end
       end
 
+      describe "logger" do
+        it "should write to the class logger if no instance logger given" do
+          fs = create_testfs(:foo)
+          mock(FileStore.logger).debug("foo")
+          fs.logger.debug("foo")
+        end
+
+        it "should write to the instance logger if given" do
+          fs = create_testfs(:foo)
+          mock(logger = Object.new).debug("foo")
+          fs.logger = logger
+          fs.logger.debug("foo")
+        end
+      end
+
     end
   end
 end

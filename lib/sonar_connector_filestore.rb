@@ -20,6 +20,7 @@ module Sonar
     #  /foo/bar/area52
     class FileStore
       class << self
+        # the default logger...
         attr_accessor :logger
       end
       FileStore.logger = Logger.new($stdout)
@@ -28,7 +29,8 @@ module Sonar
       attr_reader :root
       attr_reader :name
       attr_reader :areas
-      
+      attr_writer :logger
+
       def self.valid_filestore_name(name)
         ordinary_directory_name(name)
       end
@@ -48,6 +50,10 @@ module Sonar
         @areas = Set.new([*areas])
         raise ":tmp is not a valid area name" if @areas.include?(:tmp)
         @areas.each{|area| FileUtils.mkdir_p(area_path(area))}
+      end
+
+      def logger
+        @logger || FileStore.logger
       end
 
       def destroy!
@@ -86,7 +92,7 @@ module Sonar
               delete(source_area, f)
             end
           rescue Exception=>e
-            FileStore.logger.warn(FileStore.to_s){[e.class.to_s, e.message, *e.backtrace].join("\n")}
+            logger.warn(FileStore.to_s){[e.class.to_s, e.message, *e.backtrace].join("\n")}
             if error_area
               move(source_area, f, error_area)
             else
@@ -111,7 +117,7 @@ module Sonar
             batch.each{|p| delete(source_area, p)}
           end
         rescue Exception=>e
-          FileStore.logger.warn(FileStore.to_s){[e.class.to_s, e.message, *e.backtrace].join("\n")}
+          logger.warn(FileStore.to_s){[e.class.to_s, e.message, *e.backtrace].join("\n")}
           if error_area
             batch.each{|p| move(source_area, p, error_area)}
           else
