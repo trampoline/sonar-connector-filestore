@@ -135,7 +135,7 @@ module Sonar
         it "should process all files in an area" do
           texts = Set.new
           @fs.process(:foo) do |f|
-            texts << File.read(f)
+            texts << File.read(@fs.file_path(:foo, f))
           end
           texts.should == ["one two three", "four five six", "seven eight nine"].to_set
           @fs.count(:foo).should == 0
@@ -144,9 +144,9 @@ module Sonar
         it "should move failed processings to the error_area" do
           texts = Set.new
           @fs.process(:foo, :bar) do |f|
-            s = File.read(f)
+            s = File.read(@fs.file_path(:foo, f))
             raise "five" if s =~ /five/
-            texts << File.read(f)
+            texts << s
           end
           texts.should == ["one two three", "seven eight nine"].to_set
           @fs.count(:foo).should == 0
@@ -157,9 +157,9 @@ module Sonar
         it "should move completed processings to the success_area" do
           texts = Set.new
           @fs.process(:foo, :bar, :baz) do |f|
-            s = File.read(f)
+            s = File.read(@fs.file_path(:foo, f))
             raise "five" if s =~ /five/
-            texts << File.read(f)
+            texts << s
           end
           texts.should == ["one two three", "seven eight nine"].to_set
           @fs.count(:foo).should == 0
@@ -169,6 +169,85 @@ module Sonar
           @fs.read(:baz, "testfile.txt").should == "one two three"
           @fs.read(:baz, "testfile3.txt").should == "seven eight nine"
         end
+      end
+
+      describe "process_batch" do
+        before do
+          @fs = create_testfs(:foo, :bar, :baz)
+          FileUtils.mkdir_p(File.join(@fs.area_path(:foo), "a", "b"))
+          FileUtils.mkdir_p(File.join(@fs.area_path(:foo), "c", "d"))
+          @fs.write(:foo, "a/b/testfile.txt", "one two three")
+          @fs.write(:foo, "a/testfile2.txt", "four five six")
+          @fs.write(:foo, "c/d/testfile3.txt", "seven eight nine")
+          @fs.write(:foo, "c/testfile3.txt", "ten eleven twelve")
+
+          @files = ["a/b/testfile.txt", "a/testfile2.txt", "c/d/testfile3.txt", "c/testfile3.txt"].to_set
+          @processed = Set.new
+        end
+
+        def process_batch(fs, size, source_area, error_area=nil, success_area=nil)
+          fs.process_batch(size, source_area, error_area, success_area) do |batch|
+            @processed += batch
+            batch.each do |f| 
+              raise "#{f} not in @files" if !@files.delete?(f) 
+            end
+            if block_given?
+              batch.each do |f|
+                yield f
+              end
+            end
+          end
+        end
+
+        def check_files(fs, area, paths, test)
+          paths.each{|f| File.exist?(fs.file_path(area, f)).should == test}
+        end
+
+        it "should process and delete a limited batch of files" do
+          process_batch(@fs, 2, :foo).should == 2
+          
+          @processed.size.should == 2
+          @files.size.should == 2
+          check_files(@fs, :foo, @processed, false)
+          check_files(@fs, :foo, @files, true)
+
+          process_batch(@fs, 3, :foo).should == 2
+
+          @processed.size.should == 4
+          @files.size.should == 0
+          check_files(@fs, :foo, @processed, false)
+
+          process_batch(@fs, 2, :foo).should == 0
+        end
+
+        it "should move failed batches to error_area if given" do
+          process_batch(@fs, 2, :foo, :bar){|f| raise "foo"}.should == 2
+          
+          @files.size.should == 2
+          check_files(@fs, :foo, @files, true)
+          check_files(@fs, :bar, @processed, true)
+
+          @ok = Set.new
+          process_batch(@fs, 2, :foo, :bar){|f| @ok << f}.should == 2
+          @files.size.should == 0
+          check_files(@fs, :foo, @ok, false)
+          check_files(@fs, :bar, @ok, false)
+
+          process_batch(@fs, 2, :foo, :bar).should == 0
+        end
+
+        it "should move successful batches to success_area if given" do
+          process_batch(@fs, 2, :foo, :bar, :baz).should == 2
+          @files.size.should == 2
+          check_files(@fs, :foo, @files, true)
+          check_files(@fs, :baz, @processed, true)
+
+          process_batch(@fs, 2, :foo, :bar, :baz).should == 2
+          check_files(@fs, :baz, @processed, true)
+          
+          process_batch(@fs, 2, :foo, :bar, :baz).should == 0
+        end
+
       end
 
       describe "flip" do
@@ -190,6 +269,30 @@ module Sonar
           File.exists?(File.join(@testfs.area_path(:foo)))
         end
 
+      end
+
+      describe "area_files" do
+        before do
+          @fs = create_testfs(:foo)
+          FileUtils.mkdir_p(File.join(@fs.area_path(:foo), "a", "b"))
+          FileUtils.mkdir_p(File.join(@fs.area_path(:foo), "c", "d"))
+          @fs.write(:foo, "a/b/testfile.txt", "one two three")
+          @fs.write(:foo, "a/testfile2.txt", "four five six")
+          @fs.write(:foo, "c/d/testfile3.txt", "seven eight nine")
+          @fs.write(:foo, "c/testfile3.txt", "ten eleven twelve")
+
+          @files = ["a/b/testfile.txt", "a/testfile2.txt", "c/d/testfile3.txt", "c/testfile3.txt"].to_set
+        end
+
+        it "should fetch all paths if max not given" do 
+          @fs.area_files(:foo).to_set.should == @files
+        end
+
+        it "should fetch a limited number of paths if max given" do
+          fs = @fs.area_files(:foo, 2).to_set
+          fs.size.should == 2
+          (@files - fs).size.should == 2
+        end
       end
 
     end

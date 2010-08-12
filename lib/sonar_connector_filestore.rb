@@ -30,14 +30,18 @@ module Sonar
       attr_reader :areas
       
       def self.valid_filestore_name(name)
+        ordinary_directory_name(name)
+      end
+
+      def self.ordinary_directory_name(name)
         name !~ /^\./
       end
 
-
       def initialize(root, name, areas)
-        raise "directory '#{root}' does not exist" if !File.directory?(root)
+        raise "directory '#{root}' does not exist or is not a directory" if !File.directory?(root)
         @root = root
 
+        raise "#{name} is not a valid filestore name" if !FileStore.valid_filestore_name(name)
         @name = name
         FileUtils.mkdir_p(filestore_path)
 
@@ -72,10 +76,10 @@ module Sonar
       def process(source_area, error_area=nil, success_area=nil)
         raise "i need a block" if !block_given?
         
-        ap = area_path(source_area)
-        for_each(source_area) do |f|
+        files = area_files(source_area)
+        files.each do |f|
           begin
-            yield File.join(ap, f)
+            yield f
             if success_area
               move(source_area, f, success_area)
             else
@@ -90,6 +94,38 @@ module Sonar
             end
           end
         end
+      end
+
+      # process a batch of files from source_area. move them to error_area if
+      # the block raises and exception, and to success_area if the block completes
+      # returns the number of items processed, 0 if all work is done
+      def process_batch(batch_size, source_area, error_area=nil, success_area=nil)
+        raise "i need a block" if !block_given?
+
+        batch = area_files(source_area, batch_size)
+        begin
+          yield batch
+          if success_area
+            batch.each{|p| move(source_area, p, success_area)}
+          else
+            batch.each{|p| delete(source_area, p)}
+          end
+        rescue Exception=>e
+          FileStore.logger.warn(FileStore.to_s){[e.class.to_s, e.message, *e.backtrace].join("\n")}
+          if error_area
+            batch.each{|p| move(source_area, p, error_area)}
+          else
+            batch.each{|p| delete(source_area, p)}
+          end
+        end
+        return batch.size
+      end
+
+      # fetch at most max regular files from an area
+      def area_files(area, max=nil)
+        ap = area_path(area)
+        paths = file_paths(ap, max)
+        paths.map{|p| p.gsub(/^#{ap}#{File::SEPARATOR}/,'')}
       end
 
       # number of items in an area
@@ -114,16 +150,17 @@ module Sonar
         @areas.reduce({}){|h,area| h[area]=size(area) ; h}
       end
 
-      # iterate over all files in an area, calling a block on each
+      # iterate over all files in top level of an area, calling a block on each
       def for_each(area)
         ap = area_path(area)
         Dir.foreach(area_path(area)) do |f|
-          yield f if FileStore.valid_filestore_name(f)
+          yield f if File.file?(f) || FileStore.ordinary_directory_name(f)
         end
       end
 
       # write a file to an area
       def write(area, filename, content)
+        ensure_directory(area, filename)
         File.open(file_path(area, filename), "w"){ |io| io << content }
       end
 
@@ -132,22 +169,24 @@ module Sonar
         File.read(file_path(area, filename))
       end
 
-      # move a path into an area of the filestore
-      def receive(path, to_area)
-        check_area(to_area)
-        ap = area_path(to_area)
-        FileUtils.mv(path, to_area)
-      end
-
       # remove a file from an area
       def delete(area, filename)
         FileUtils.rm_r(file_path(area, filename))
+      end
+
+      # ensure that the directory of a filename exists in the given area
+      def ensure_directory(area, filename)
+        # create a directory in the destination area if necessary
+        dir = File.dirname(filename)
+        FileUtils.mkdir_p(file_path(area, dir)) if filename =~ /^#{dir}/
       end
 
       # move a file from one area to another
       def move(from_area, filename, to_area)
         f1 = file_path(from_area, filename)
         f2 = file_path(to_area, filename)
+
+        ensure_directory(to_area, filename)
         FileUtils.mv(f1, f2)
       end
 
@@ -193,18 +232,34 @@ module Sonar
       private
 
       # depth first search
-      def scrub_path(path, scrub)
+      def scrub_path(dir, scrub)
         empty = scrub
-        Dir.foreach(path) do |f|
-          sub_path = File.join(path, f)
-          if File.directory?(sub_path) 
+        Dir.foreach(dir) do |f|
+          path = File.join(dir, f)
+          if File.directory?(path) 
             # want to descend : so avoid short-cut evaluation
-            empty = scrub_path(sub_path, true) && empty if FileStore.valid_filestore_name(f)
+            empty = scrub_path(path, true) && empty if FileStore.ordinary_directory_name(f)
           else
             empty = false
           end
         end
-        FileUtils.rm_rf(path) if empty
+        FileUtils.rm_rf(dir) if empty
+      end
+
+      # fetch at most max regular file paths from a directory hierarchy
+      # rooted at dir
+      def file_paths(dir, max=nil)
+        paths = []
+        Dir.foreach(dir) do |f|
+          return paths if max && paths.size >= max
+          path = File.join(dir, f)
+          if File.directory?(path)
+            paths += file_paths(path, max) if FileStore.ordinary_directory_name(f)
+          elsif File.file?(path)
+            paths << path
+          end
+        end
+        paths
       end
 
     end
