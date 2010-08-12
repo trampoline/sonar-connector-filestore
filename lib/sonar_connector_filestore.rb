@@ -227,11 +227,15 @@ module Sonar
       def flip(area, filestore, to_area)
         ap = area_path(area)
         paths = []
-        # collect all moveable paths
-        for_each(area) do |f|
-          paths << File.join(ap, f)
+
+        file_paths = area_files(area,1) # find at most one file-path from the area
+        if file_paths.length>0 # only flip if there are some actual files to flip
+          # collect all moveable paths
+          for_each(area) do |f|
+            paths << File.join(ap, f)
+          end
+          filestore.receive_flip(name, to_area, paths)
         end
-        filestore.receive_flip(name, to_area, paths)
       end
 
       # receive a flip... move all paths to be flipped 
@@ -241,15 +245,21 @@ module Sonar
         ap = area_path(to_area)
         to_path = File.join(ap, from_filestore_name.to_s)
 
-        # first move all moveable paths to a unique named tmp area
-        tmp_path = File.join(area_path(:tmp), UUIDTools::UUID.timestamp_create)
+        # a path for receiving flips for an area
+        tmp_area_path = File.join(area_path(:tmp), to_area.to_s)
+
+        # first move all moveable paths to a unique named tmp area within the receive area
+        tmp_path = File.join(tmp_area_path, UUIDTools::UUID.timestamp_create)
         FileUtils.mkdir_p(tmp_path)
         paths.each do |path|
           FileUtils.mv(path, tmp_path)
         end
 
-        # then move them to the target path in one atomic hit
-        FileUtils.mv(tmp_path, to_path)
+        # move everything from the receive area... recovers interrupted receive_flips too
+        Dir.foreach(tmp_area_path) do |path|
+          mv_path = File.join(tmp_area_path, path)
+          FileUtils.mv(mv_path, to_path) if !File.directory?(mv_path) || FileStore.ordinary_directory_name(path)
+        end
       end
 
       private
