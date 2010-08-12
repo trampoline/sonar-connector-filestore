@@ -144,11 +144,9 @@ module Sonar
         return batch.size
       end
 
-      # fetch at most max regular files from an area
+      # fetch at most max regular file paths from an area
       def area_files(area, max=nil)
-        ap = area_path(area)
-        paths = file_paths(ap, max)
-        paths.map{|p| p.gsub(/^#{ap}#{File::SEPARATOR}/,'')}
+        relative_file_paths(area_path(area), max)
       end
 
       # number of items in an area
@@ -183,7 +181,7 @@ module Sonar
 
       # write a file to an area
       def write(area, filename, content)
-        ensure_directory(area, filename)
+        ensure_area_directory(area, filename)
         File.open(file_path(area, filename), "w"){ |io| io << content }
       end
 
@@ -197,20 +195,9 @@ module Sonar
         FileUtils.rm_r(file_path(area, filename))
       end
 
-      # ensure that the directory of a filename exists in the given area
-      def ensure_directory(area, filename)
-        # create a directory in the destination area if necessary
-        dir = File.dirname(filename)
-        FileUtils.mkdir_p(file_path(area, dir)) if filename =~ /^#{dir}/
-      end
-
       # move a file from one area to another
       def move(from_area, filename, to_area)
-        f1 = file_path(from_area, filename)
-        f2 = file_path(to_area, filename)
-
-        ensure_directory(to_area, filename)
-        FileUtils.mv(f1, f2)
+        move_file(area_path(from_area), filename, area_path(to_area))
       end
 
       # remove any empty directories from an area
@@ -228,14 +215,13 @@ module Sonar
         ap = area_path(area)
         paths = []
 
-        file_paths = area_files(area,1) # find at most one file-path from the area
-        if file_paths.length>0 # only flip if there are some actual files to flip
-          # collect all moveable paths
-          for_each(area) do |f|
-            paths << File.join(ap, f)
-          end
-          filestore.receive_flip(name, to_area, paths)
+        scrub!(area) # only move what we need to
+
+        # collect all moveable paths
+        for_each(area) do |f|
+          paths << File.join(ap, f)
         end
+        filestore.receive_flip(name, to_area, paths) if paths.length>0
       end
 
       # receive a flip... move all paths to be flipped 
@@ -245,20 +231,22 @@ module Sonar
         ap = area_path(to_area)
         to_path = File.join(ap, from_filestore_name.to_s)
 
-        # a path for receiving flips for an area
+        # a path for receiving all flips for an area
         tmp_area_path = File.join(area_path(:tmp), to_area.to_s)
 
         # first move all moveable paths to a unique named tmp area within the receive area
         tmp_path = File.join(tmp_area_path, UUIDTools::UUID.timestamp_create)
-        FileUtils.mkdir_p(tmp_path)
-        paths.each do |path|
-          FileUtils.mv(path, tmp_path)
+        if paths.length>0
+          FileUtils.mkdir_p(tmp_path)
+          paths.each do |path|
+            FileUtils.mv(path, tmp_path)
+          end
         end
 
         # move everything from the receive area... recovers interrupted receive_flips too
         Dir.foreach(tmp_area_path) do |path|
           mv_path = File.join(tmp_area_path, path)
-          FileUtils.mv(mv_path, to_path) if !File.directory?(mv_path) || FileStore.ordinary_directory_name(path)
+          FileUtils.mv(mv_path, to_path) if File.file?(mv_path) || (File.directory?(mv_path) && FileStore.ordinary_directory_name(path))
         end
       end
 
@@ -279,6 +267,12 @@ module Sonar
         FileUtils.rm_rf(dir) if empty
       end
 
+      # fetch at most max relative regular file paths from a directory hierarchy
+      # rooted at dir
+      def relative_file_paths(dir, max=nil)
+        file_paths(dir, max).map{|p| p.gsub(/^#{dir}#{File::SEPARATOR}/,'')}
+      end
+
       # fetch at most max regular file paths from a directory hierarchy
       # rooted at dir
       def file_paths(dir, max=nil)
@@ -295,6 +289,29 @@ module Sonar
         paths
       end
 
+      # move a file named relative to filename dir
+      # to the same filename relative to to_dir
+      def move_file(from_dir, filename, to_dir)
+        f1 = File.join(from_dir, filename)
+        f2 = File.join(to_dir, filename)
+        ensure_directory(to_dir, filename)
+        FileUtils.mv(f1, f2)
+      end
+
+      # ensure that the directory of a filename exists in the given area
+      def ensure_area_directory(area, filename)
+        # create a directory in the destination area if necessary
+        ensure_directory(area_path(area), filename)
+      end
+
+      # given a directory, and a filename relative to it, ensure
+      # that the directory containing the actual file exists
+      # e.g. given dir==/a/b/c and filename==d/e/f.txt
+      # then ensure directory /a/b/c/d/e exists
+      def ensure_directory(dir, filename)
+        file_dir = File.expand_path(File.join(dir, File.dirname(filename)))
+        FileUtils.mkdir_p(file_dir)
+      end
     end
   end
 end
