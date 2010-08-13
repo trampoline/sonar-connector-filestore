@@ -220,6 +220,13 @@ module Sonar
           process_batch(@fs, 2, :foo).should == 0
         end
 
+        it "should not call the block if there are no files to process" do
+          process_batch(@fs, 4, :foo).should == 4
+          @fs.process_batch(1, :foo) do
+            raise "i should not be called"
+          end
+        end
+
         it "should move failed batches to error_area if given" do
           lambda {
             process_batch(@fs, 2, :foo, :bar){|f| raise "foo"}

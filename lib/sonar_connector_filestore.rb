@@ -122,6 +122,7 @@ module Sonar
         raise "i need a block" if !block_given?
 
         batch = area_files(source_area, batch_size)
+        return 0 if batch.size==0
         begin
           yield batch
           if success_area
