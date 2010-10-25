@@ -23,6 +23,75 @@ module Sonar
         FileStore.new(TMP_DIR, :testfs, areas)
       end
 
+      describe "valid_area_name?" do
+        it "should not permit :tmp as an area name" do
+          FileStore.valid_area_name?(:tmp).should == false
+        end
+
+        it "should permit :foo as an area name" do
+          FileStore.valid_area_name?(:foo).should == true
+        end
+      end
+
+      describe "ordinary_directory_name?" do
+        it "should return false for .." do
+          FileStore.ordinary_directory_name?("..").should == false
+        end
+
+        it "should return false for ." do
+          FileStore.ordinary_directory_name?(".").should == false
+        end
+
+        it "should return false for .foo" do 
+          FileStore.ordinary_directory_name?(".foo").should == false
+       end
+
+        it "should return true for foo" do
+          FileStore.ordinary_directory_name?("foo").should == true
+        end
+
+        it "should return false for foo/." do
+          FileStore.ordinary_directory_name?("foo/.").should == false
+        end
+
+        it "should return false for foo/.foo" do
+          FileStore.ordinary_directory_name?("foo/.foo").should == false
+        end
+      end
+
+      describe "valid_filestore_name?" do
+        it "should not permitted sub-directory names" do
+          FileStore.valid_filestore_name?("foo/bar").should == false
+        end
+
+        it "should permit simple filenames" do
+          FileStore.valid_filestore_name?("foo").should == true
+        end
+
+        it "should not permit dot filenames" do
+          FileStore.valid_filestore_name?(".foo").should == false
+        end
+
+        it "should not permit special dirnames" do
+          FileStore.valid_filestore_name?(".").should == false
+        end
+      end
+
+      describe "ordinary_directory?" do
+        it "should return true for regular real directory" do
+          FileStore.ordinary_directory?(TMP_DIR).should == true
+        end
+
+        it "should return false for nested special directory" do
+          FileStore.ordinary_directory?(File.join(TMP_DIR, '.')).should == false
+        end
+
+        it "should return false for non-existent directory" do
+          FileStore.ordinary_directory?("blahblah").should == false
+        end
+      end
+
+
       it "should initialize with a root, a name and areas, and create directories" do
         fs=create_testfs
         fs.root.should == TMP_DIR
@@ -113,6 +182,12 @@ module Sonar
 
       it "should ignore . and .. files when iterating" do
         fs = create_testfs(:foo, :bar, :baz)
+        ap = fs.area_path(:foo)
+
+        # only files "foo" and "bar" exist in area :foo
+        stub(File).file?(File.join(ap,"foo")){true}
+        stub(File).file?(File.join(ap,"bar")){true}
+        stub(File).file?(){false}
 
         stub(Dir).foreach do |path, proc| 
           [".", "..", "foo", "bar"].each{ |p| proc.call(p)}
@@ -277,12 +352,24 @@ module Sonar
         end
 
 
-        it "should flip from testfs to targetfs" do
+        it "should flip non-unique names from testfs to uniquely named subdir of targetfs" do
+          stub(@targetfs).unique_name{"some-uuid-string"}
+
+          @testfs.flip(:foo, @targetfs, :a, false)
+
+          File.exists?(File.join(@targetfs.area_path(:a), "some-uuid-string", "testfile.txt")).should == true
+
+          # should recreate area in flipped source, so source is
+          # still valid
+          File.exists?(File.join(@testfs.area_path(:foo)))
+        end
+
+        it "should flip unique names from testfs to targetfs without introducing additional subdirectories" do
           @testfs.flip(:foo, @targetfs, :a)
 
-          File.exists?(File.join(@targetfs.area_path(:a), @testfs.name.to_s, "testfile.txt")).should == true
+          File.exists?(File.join(@targetfs.area_path(:a), "testfile.txt")).should == true
 
-          # should recreate are in flipped source, so source is
+          # should recreate area in flipped source, so source is
           # still valid
           File.exists?(File.join(@testfs.area_path(:foo)))
         end

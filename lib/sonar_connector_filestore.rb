@@ -31,24 +31,33 @@ module Sonar
       attr_reader :areas
       attr_writer :logger
 
-      def self.valid_filestore_name(name)
-        ordinary_directory_name(name)
+      def self.valid_filestore_name?(f)
+        (f.to_s == File.basename(f.to_s)) && 
+          ordinary_directory_name?(f)
       end
 
-      def self.ordinary_directory_name(name)
-        name !~ /^\./
+      def self.valid_area_name?(a)
+        a.to_s != "tmp"
+      end
+
+      def self.ordinary_directory_name?(f)
+        File.basename(f.to_s) !~ /^\./
+      end
+
+      def self.ordinary_directory?(f)
+        ordinary_directory_name?(f.to_s) && File.directory?(f.to_s)
       end
 
       def initialize(root, name, areas, opts={})
         raise "directory '#{root}' does not exist or is not a directory" if !File.directory?(root)
         @root = root
 
-        raise "#{name} is not a valid filestore name" if !FileStore.valid_filestore_name(name)
+        raise "#{name} is not a valid filestore name" if !FileStore.valid_filestore_name?(name)
         @name = name
         FileUtils.mkdir_p(filestore_path)
 
         @areas = Set.new([*areas])
-        raise ":tmp is not a valid area name" if @areas.include?(:tmp)
+        @areas.each{|area| raise "#{area} is not a valid area name" if !FileStore.valid_area_name?(area)}
         @areas.each{|area| FileUtils.mkdir_p(area_path(area))}
 
         @logger = opts[:logger]
@@ -176,7 +185,8 @@ module Sonar
       def for_each(area)
         ap = area_path(area)
         Dir.foreach(area_path(area)) do |f|
-          yield f if File.file?(f) || FileStore.ordinary_directory_name(f)
+          fp = File.join(ap,f)
+          yield f if File.file?(fp) || FileStore.ordinary_directory?(fp)
         end
       end
 
@@ -212,7 +222,11 @@ module Sonar
       # thus 
       # fs1.flip(:complete, fs2, :working ) moves
       # fs1/complete/* => fs2/working/fs1/*
-      def flip(area, filestore, to_area)
+      # if unique_names is false, then unique directories
+      # are constructued in the targetfs to flip to, otherwise
+      # identical names are assumed to be identical files
+      # and will overwrite already present files
+      def flip(area, filestore, to_area, unique_names=true)
         ap = area_path(area)
         paths = []
 
@@ -222,21 +236,21 @@ module Sonar
         for_each(area) do |f|
           paths << File.join(ap, f)
         end
-        filestore.receive_flip(name, to_area, paths) if paths.length>0
+        filestore.receive_flip(name, to_area, paths, unique_names) if paths.length>0
       end
 
       # receive a flip... move all paths to be flipped 
       # into a temporary directory, and then move that
       # directory into place in one atomic move operation
-      def receive_flip(from_filestore_name, to_area, paths)
-        ap = area_path(to_area)
-        to_path = File.join(ap, from_filestore_name.to_s)
+      def receive_flip(from_filestore_name, to_area, paths, unique_names)
+#        $stderr << "receive_flip(#{from_filestore_name}, #{to_area}, #{paths.inspect}, #{unique_names})\n"
+        tmp_area_path = area_path(:tmp)
 
-        # a path for receiving all flips for an area
-        tmp_area_path = File.join(area_path(:tmp), to_area.to_s)
+        # tmp_uuid
+        tmp_uuid = unique_name
 
         # first move all moveable paths to a unique named tmp area within the receive area
-        tmp_path = File.join(tmp_area_path, UUIDTools::UUID.timestamp_create)
+        tmp_path = File.join(tmp_area_path, tmp_uuid)
         if paths.length>0
           FileUtils.mkdir_p(tmp_path)
           paths.each do |path|
@@ -245,13 +259,36 @@ module Sonar
         end
 
         # move everything from the receive area... recovers interrupted receive_flips too
+        to_path = area_path(to_area)
         Dir.foreach(tmp_area_path) do |path|
-          mv_path = File.join(tmp_area_path, path)
-          FileUtils.mv(mv_path, to_path) if File.file?(mv_path) || (File.directory?(mv_path) && FileStore.ordinary_directory_name(path))
+          path_1 = File.join(tmp_area_path, path)
+          if unique_names
+
+            if FileStore.ordinary_directory?(path_1)
+              # names are unique, so don't move the uuid folders
+              Dir.foreach(path_1) do |file_path|
+                path_2 = File.join(path_1, file_path)
+                FileUtils.mv(path_2, to_path, :force=>true) if File.file?(path_2) || FileStore.ordinary_directory?(path_2)              
+              end
+            elsif File.file?(path_1) # names are unique, so ok to move plain files too
+              FileUtils.mv(path_1, to_path, :force=>true)
+            end
+
+          else
+            # move uuid named dirs
+            FileUtils.mv(path_1, to_path, :force=>true) if File.file?(path_1) || FileStore.ordinary_directory?(path_1)
+          end
         end
+
+        # finally remove any empty tmp dirs
+        scrub!(:tmp)
       end
 
       private
+
+      def unique_name
+        UUIDTools::UUID.timestamp_create
+      end
 
       # depth first search
       def scrub_path(dir, scrub)
@@ -260,7 +297,7 @@ module Sonar
           path = File.join(dir, f)
           if File.directory?(path) 
             # want to descend : so avoid short-cut evaluation
-            empty = scrub_path(path, true) && empty if FileStore.ordinary_directory_name(f)
+            empty = scrub_path(path, true) && empty if FileStore.ordinary_directory_name?(f)
           else
             empty = false
           end
@@ -282,7 +319,7 @@ module Sonar
           return paths if max && paths.size >= max
           path = File.join(dir, f)
           if File.directory?(path)
-            paths += file_paths(path, max) if FileStore.ordinary_directory_name(f)
+            paths += file_paths(path, max) if FileStore.ordinary_directory_name?(f)
           elsif File.file?(path)
             paths << path
           end
