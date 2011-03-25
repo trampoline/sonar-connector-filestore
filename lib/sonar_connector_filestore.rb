@@ -69,7 +69,7 @@ module Sonar
 
       def destroy!
         logger.info("destroying: #{filestore_path}")
-        FileUtils.rm_r(filestore_path)
+        FileUtils.rm_rf(filestore_path)
       end
 
       def filestore_path
