@@ -146,7 +146,7 @@ module Sonar
         rescue Exception=>e
           logger.warn(FileStore.to_s){[e.class.to_s, e.message, *e.backtrace].join("\n")}
           if error_area
-            batch.each{|p| move(source_area, p, error_area)}
+            batch.each{|p| move(source_area, p, error_area)} if error_area!=source_area
           else
             batch.each{|p| delete(source_area, p)}
           end

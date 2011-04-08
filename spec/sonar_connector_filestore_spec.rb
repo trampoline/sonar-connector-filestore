@@ -320,6 +320,25 @@ module Sonar
           process_batch(@fs, 2, :foo, :bar).should == 0
         end
 
+        it "should leave failed batches alone if error_area is the same as source_area" do
+          @files_copy = @files.clone
+          lambda {
+            process_batch(@fs, 2, :foo, :foo){|f| raise "foo"}
+          }.should raise_error("foo")
+          
+          @fs.area_files(:foo).length.should == 4
+          check_files(@fs, :foo, @files_copy, true)
+
+          @ok = Set.new
+          @files = @files_copy.clone
+          process_batch(@fs, 4, :foo, :foo){|f| @ok << f}.should == 4
+          @files.size.should == 0
+          @ok.size.should == 4
+          check_files(@fs, :foo, @ok, false)
+
+          process_batch(@fs, 2, :foo, :foo).should == 0
+        end
+
         it "should move successful batches to success_area if given" do
           process_batch(@fs, 2, :foo, :bar, :baz).should == 2
           @files.size.should == 2
