@@ -23,3 +23,4 @@ tmp
 
 /.bundle
 vendor/jruby
+.rbenv-gemsets
