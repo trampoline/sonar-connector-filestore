@@ -8,5 +8,5 @@ group :development do
   gem "rdoc", "~> 4.0.0"
   gem "bundler", "~> 1.3.2"
   gem "jeweler", "~> 1.8.4"
-  gem 'rr', github: "btakita/rr"
+  gem 'rr', :github => "btakita/rr"
 end
