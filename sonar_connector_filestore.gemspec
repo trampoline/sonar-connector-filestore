@@ -5,7 +5,7 @@
 
 Gem::Specification.new do |s|
   s.name = "sonar_connector_filestore"
-  s.version = "0.3.0"
+  s.version = "0.4.0"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["mccraigmccraig"]
@@ -25,6 +25,7 @@ Gem::Specification.new do |s|
     "Rakefile",
     "VERSION",
     "lib/sonar_connector_filestore.rb",
+    "sonar_connector_filestore.gemspec",
     "spec/sonar_connector_filestore_spec.rb",
     "spec/spec.opts",
     "spec/spec_helper.rb"
