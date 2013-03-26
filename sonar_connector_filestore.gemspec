@@ -18,6 +18,7 @@ Gem::Specification.new do |s|
   ]
   s.files = [
     ".document",
+    ".ruby-version",
     ".travis.yml",
     "Gemfile",
     "Gemfile.lock",
@@ -26,6 +27,7 @@ Gem::Specification.new do |s|
     "Rakefile",
     "VERSION",
     "lib/sonar_connector_filestore.rb",
+    "sonar_connector_filestore.gemspec",
     "spec/sonar_connector_filestore_spec.rb",
     "spec/spec.opts",
     "spec/spec_helper.rb"
@@ -33,7 +35,7 @@ Gem::Specification.new do |s|
   s.homepage = "http://github.com/trampoline/sonar-connector-filestore"
   s.licenses = ["MIT"]
   s.require_paths = ["lib"]
-  s.rubygems_version = "1.8.23"
+  s.rubygems_version = "1.8.24"
   s.summary = "reliable staged processing with the filesystem"
 
   if s.respond_to? :specification_version then
