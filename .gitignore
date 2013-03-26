@@ -19,7 +19,6 @@ rdoc
 pkg
 
 ## PROJECT::SPECIFIC
-*.gemspec
 tmp
 
 /.bundle
