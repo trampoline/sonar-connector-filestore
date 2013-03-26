@@ -19,8 +19,8 @@ rdoc
 pkg
 
 ## PROJECT::SPECIFIC
-*.gemspec
 tmp
 
 /.bundle
 vendor/jruby
+.rbenv-gemsets
