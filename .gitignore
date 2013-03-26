@@ -21,3 +21,6 @@ pkg
 ## PROJECT::SPECIFIC
 *.gemspec
 tmp
+
+/.bundle
+vendor/jruby
