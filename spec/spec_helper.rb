@@ -6,9 +6,10 @@ require 'rspec'
 require 'rspec/autorun'
 require 'rr'
 require 'fileutils'
+require 'tmpdir'
 
 RSpec.configure do |config|
   config.include(RR::Adapters::RSpec2)
 end
 
-TMP_DIR = File.expand_path("../../tmp", __FILE__)
+TMP_DIR = Dir.tmpdir
